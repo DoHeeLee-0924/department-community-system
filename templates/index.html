@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h2>태그별 정보 조회</h2>
+  <p class="muted">글 작성 시 태그를 필수로 선택하게 하여 인사방·수업·과제·팀플·공지·취업 정보를 바로 모아볼 수 있습니다. 신입 등급도 인사방은 상세 조회할 수 있습니다.</p>
+  <div class="grid">
+    <a class="btn light" href="{{ url_for('index', mode=mode) }}">전체</a>
+    {% for c in categories %}
+      <a class="btn light" href="{{ url_for('index', category=c, mode=mode) }}">{{ c }}</a>
+    {% endfor %}
+  </div>
+</div>
+<div class="card">
+  <h2>{% if selected_category %}[{{ selected_category }}] {% endif %}게시글 목록</h2>
+  <p class="muted">정렬 기준: {% if mode == 'trust' %}작성자 등급 + 좋아요 + 댓글 + 조회수 기반 정보 신뢰도순{% else %}최신순{% endif %}</p>
+  {% if not user %}
+    <p class="muted">로그인 후 등급 조건을 충족하면 게시글 상세 내용을 볼 수 있습니다.</p>
+  {% elif user['grade'] == '신입' %}
+    <p class="muted">현재 신입 등급입니다. 신입은 인사방 게시글만 상세 조회할 수 있고, 그 외 카테고리 상세 내용·댓글·좋아요·신고 기능은 제한됩니다. 인사방에 글 1개를 작성하면 일반 등급으로 전환됩니다.</p>
+  {% endif %}
+</div>
+{% for p in posts %}
+  <div class="card">
+    <div>
+      <span class="badge">{{ p['category'] }}</span>
+      <span class="badge">{{ p['grade'] }}</span>
+      {% if p['exposure_status'] == '상단 노출' %}<span class="badge pin">상단 노출</span>{% endif %}
+      {% if p['grade'] == '관리자' and p['category'] == '공지' %}<span class="badge hot">관리자 공지</span>{% endif %}
+    </div>
+    <h3><a href="{{ url_for('post_detail', post_id=p['id']) }}">{{ p['title'] }}</a></h3>
+    {% if user and (user['can_view'] or p['category'] == '인사방') %}
+      <p>{{ p['content'][:120] }}{% if p['content']|length > 120 %}...{% endif %}</p>
+    {% else %}
+      <p class="muted">상세 내용은 일반 등급 이상부터 조회할 수 있습니다. 단, 인사방은 신입도 조회할 수 있습니다.</p>
+    {% endif %}
+    <p class="muted">작성자 {{ p['sns_profile'] }} · 좋아요 {{ p['likes'] }} · 댓글 {{ p['comments'] }} · 조회 {{ p['view_count'] }} · 신뢰도 {{ '%.1f'|format(p['trust_score']) }}</p>
+  </div>
+{% else %}
+  <div class="card">게시글이 없습니다.</div>
+{% endfor %}
+{% endblock %}

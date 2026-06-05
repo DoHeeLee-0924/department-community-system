@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>학과 정보공유 커뮤니티</title>
+  <style>
+    body { margin:0; font-family: Arial, 'Malgun Gothic', sans-serif; background:#f6f7fb; color:#222; }
+    header { background:#2f3a5f; color:white; padding:18px 26px; }
+    header a { color:white; text-decoration:none; margin-right:14px; font-weight:600; }
+    .wrap { max-width:1040px; margin:24px auto; padding:0 18px; }
+    .card { background:white; border-radius:14px; padding:20px; margin-bottom:16px; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+    .nav { margin-top:10px; font-size:14px; }
+    .badge { display:inline-block; padding:4px 9px; border-radius:999px; background:#eef1ff; color:#30407b; font-size:13px; margin-right:5px; }
+    .badge.hot { background:#ffe9e9; color:#a32323; }
+    .badge.pin { background:#e8fff1; color:#15763d; }
+    .badge.warn { background:#fff2cc; color:#7a5200; }
+    .btn { display:inline-block; border:0; border-radius:9px; background:#2f3a5f; color:white; padding:9px 13px; text-decoration:none; cursor:pointer; }
+    .btn.light { background:#e9ecf7; color:#283153; }
+    .btn.danger { background:#b43a3a; color:white; }
+    input, textarea, select { width:100%; box-sizing:border-box; padding:11px; margin:7px 0 14px; border:1px solid #d7dce8; border-radius:9px; font-size:15px; }
+    textarea { min-height:120px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+    .muted { color:#666; font-size:14px; }
+    .flash { background:#fff7d7; padding:12px; border-radius:10px; margin-bottom:14px; }
+    table { width:100%; border-collapse:collapse; background:white; }
+    th, td { padding:10px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+    .inline-form { display:inline; }
+    .report-box { margin-top:12px; padding:12px; border-radius:10px; background:#f8f8fb; }
+  </style>
+</head>
+<body>
+<header>
+  <div><a href="{{ url_for('index') }}">학과 정보공유 커뮤니티</a></div>
+  <div class="nav">
+    <a href="{{ url_for('index') }}">홈</a>
+    <a href="{{ url_for('index', mode='trust') }}">신뢰도순</a>
+    {% if user and user['grade'] == '관리자' %}
+      <a href="{{ url_for('admin') }}">관리자 신고/삭제 관리</a>
+    {% endif %}
+    {% if user %}
+      <a href="{{ url_for('write') }}">글쓰기</a>
+      <span>{{ user['sns_profile'] }} / {{ user['grade'] }} 등급</span>
+      <span class="muted" style="color:#d9def4;">글 {{ user['post_count'] }} · 댓글 {{ user['comment_count'] }}</span>
+      <a href="{{ url_for('logout') }}">로그아웃</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">로그인</a>
+      <a href="{{ url_for('register') }}">회원가입</a>
+    {% endif %}
+  </div>
+</header>
+<div class="wrap">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>
