@@ -8,6 +8,9 @@
   <p class="muted">작성자 {{ post['sns_profile'] }} · {{ post['timestamp'] }}</p>
   <p>{{ post['content'] }}</p>
   <p class="muted">좋아요 {{ post['likes'] }} · 댓글 {{ post['comments'] }} · 조회 {{ post['view_count'] }} · 정보 신뢰도 {{ '%.1f'|format(post['trust_score']) }}</p>
+  {% if user and user['sns_profile'] == post['sns_profile'] and user['grade'] != '관리자' %}
+    <a class="btn light" href="{{ url_for('edit_post', post_id=post['id']) }}">게시글 수정</a>
+  {% endif %}
   {% if user and user['can_interact'] %}
     <form class="inline-form" method="post" action="{{ url_for('like_post', post_id=post['id']) }}"><button class="btn" type="submit">좋아요</button></form>
     <div class="report-box">
@@ -24,6 +27,9 @@
   {% for c in comments %}
     <div style="padding:10px 0; border-bottom:1px solid #eee;">
       <p><strong>{{ c['sns_profile'] }}</strong> <span class="muted">{{ c['timestamp'] }}</span><br>{{ c['content'] }}</p>
+      {% if user and user['sns_profile'] == c['sns_profile'] and user['grade'] != '관리자' %}
+        <a class="btn light" href="{{ url_for('edit_comment', comment_id=c['id']) }}">댓글 수정</a>
+      {% endif %}
       {% if user and user['can_interact'] %}
         <form method="post" action="{{ url_for('report_comment', comment_id=c['id']) }}">
           <input type="hidden" name="post_id" value="{{ post['id'] }}">

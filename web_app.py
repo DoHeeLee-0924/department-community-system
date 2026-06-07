@@ -384,6 +384,48 @@ def write():
     return render_template('write.html')
 
 
+@app.route('/post/<int:post_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_post(post_id):
+    user = current_user()
+    if user['grade'] == '관리자':
+        flash('관리자는 게시글 수정 권한이 없으며 삭제만 가능합니다.')
+        return redirect(url_for('post_detail', post_id=post_id))
+    conn = get_db()
+    post = conn.execute('SELECT * FROM posts WHERE id = ? AND archived = 0', (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        flash('게시글을 찾을 수 없습니다.')
+        return redirect(url_for('index'))
+    if post['sns_profile'] != user['sns_profile']:
+        conn.close()
+        flash('작성자 본인만 게시글을 수정할 수 있습니다.')
+        return redirect(url_for('post_detail', post_id=post_id))
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        category = request.form.get('category', '').strip()
+        if not title or not content or category not in CATEGORIES:
+            flash('제목, 내용, 태그를 모두 입력해야 게시글 수정이 가능합니다.')
+            conn.close()
+            return redirect(url_for('edit_post', post_id=post_id))
+        if user['grade'] == '신입' and category != '인사방':
+            flash('신입 등급은 인사방 게시글만 작성·수정할 수 있습니다.')
+            conn.close()
+            return redirect(url_for('edit_post', post_id=post_id))
+        conn.execute("""
+            UPDATE posts
+            SET title = ?, content = ?, category = ?
+            WHERE id = ?
+        """, (title, content, category, post_id))
+        conn.commit()
+        conn.close()
+        flash('게시글이 수정되었습니다.')
+        return redirect(url_for('post_detail', post_id=post_id))
+    conn.close()
+    return render_template('edit_post.html', post=post)
+
+
 @app.route('/post/<int:post_id>')
 @login_required
 def post_detail(post_id):
@@ -445,6 +487,40 @@ def add_comment(post_id):
     conn.commit()
     conn.close()
     return redirect(url_for('post_detail', post_id=post_id))
+
+
+@app.route('/comment/<int:comment_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_comment(comment_id):
+    user = current_user()
+    if user['grade'] == '관리자':
+        flash('관리자는 댓글 수정 권한이 없으며 삭제만 가능합니다.')
+        return redirect(url_for('admin'))
+    conn = get_db()
+    comment = conn.execute('SELECT * FROM comments WHERE id = ?', (comment_id,)).fetchone()
+    if not comment:
+        conn.close()
+        flash('댓글을 찾을 수 없습니다.')
+        return redirect(url_for('index'))
+    if comment['sns_profile'] != user['sns_profile']:
+        post_id = comment['post_id']
+        conn.close()
+        flash('작성자 본인만 댓글을 수정할 수 있습니다.')
+        return redirect(url_for('post_detail', post_id=post_id))
+    if request.method == 'POST':
+        content = request.form.get('content', '').strip()
+        if not content:
+            flash('댓글 내용을 입력해야 수정할 수 있습니다.')
+            conn.close()
+            return redirect(url_for('edit_comment', comment_id=comment_id))
+        conn.execute('UPDATE comments SET content = ? WHERE id = ?', (content, comment_id))
+        conn.commit()
+        post_id = comment['post_id']
+        conn.close()
+        flash('댓글이 수정되었습니다.')
+        return redirect(url_for('post_detail', post_id=post_id))
+    conn.close()
+    return render_template('edit_comment.html', comment=comment)
 
 
 @app.route('/post/<int:post_id>/like', methods=['POST'])
