@@ -1,17 +1,17 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% block title %}글쓰기{% endblock %}
 {% block content %}
 <div class="card">
   <h2>글쓰기</h2>
-  <p class="muted">태그 선택은 필수입니다. 태그를 통해 게시글이 인사방/수업/과제/팀플/공지/취업으로 구조화됩니다. 신입 등급은 등업을 위해 인사방에만 글을 작성할 수 있습니다.</p>
   <form method="post">
-    <label>태그</label>
-    <select name="category" required>
-      <option value="">태그 선택</option>
-      {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    <input name="title" placeholder="제목" required>
+    <select name="category">
+      {% for category in categories %}
+        <option>{{ category }}</option>
+      {% endfor %}
     </select>
-    <label>제목</label><input name="title" required>
-    <label>내용</label><textarea name="content" required></textarea>
-    <button class="btn" type="submit">등록</button>
+    <textarea name="content" placeholder="내용" required></textarea>
+    <button class="btn">등록</button>
   </form>
 </div>
 {% endblock %}

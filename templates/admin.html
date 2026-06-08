@@ -1,59 +1,59 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% block title %}관리자{% endblock %}
 {% block content %}
 <div class="card">
   <h2>관리자 신고/삭제 관리</h2>
-  <p class="muted">관리자는 모든 게시글과 댓글을 삭제할 수 있으며, 신고된 게시글과 댓글을 한 화면에서 확인할 수 있습니다. 수정 권한은 제공하지 않습니다.</p>
-</div>
-<div class="card">
-  <h3>신고된 게시글</h3>
-  <table><tr><th>신고일</th><th>게시글</th><th>작성자</th><th>신고자</th><th>사유</th><th>관리</th></tr>
-  {% for r in post_reports %}
-    <tr>
-      <td>{{ r['timestamp'] }}</td><td>{{ r['title'] or '삭제된 게시글' }}</td><td>{{ r['writer_profile'] }}</td><td>{{ r['reporter_profile'] }}</td><td>{{ r['reason'] }}</td>
-      <td>{% if r['title'] %}<form method="post" action="{{ url_for('delete_post', post_id=r['post_id']) }}"><button class="btn danger" type="submit">게시글 삭제</button></form>{% endif %}</td>
-    </tr>
-  {% else %}<tr><td colspan="6">신고된 게시글이 없습니다.</td></tr>{% endfor %}
+  <h3>신고 목록</h3>
+  <table>
+    <tr><th>대상</th><th>ID</th><th>신고자</th><th>사유</th><th>시간</th></tr>
+    {% for report in reports %}
+      <tr>
+        <td>{{ report.target_type }}</td>
+        <td>{{ report.target_id }}</td>
+        <td>{{ report.reporter_profile }}</td>
+        <td>{{ report.reason }}</td>
+        <td>{{ report.created_at }}</td>
+      </tr>
+    {% endfor %}
   </table>
 </div>
+
 <div class="card">
-  <h3>신고된 댓글</h3>
-  <table><tr><th>신고일</th><th>게시글</th><th>댓글</th><th>작성자</th><th>신고자</th><th>사유</th><th>관리</th></tr>
-  {% for r in comment_reports %}
-    <tr>
-      <td>{{ r['timestamp'] }}</td><td>{{ r['post_title'] }}</td><td>{{ r['content'] or '삭제된 댓글' }}</td><td>{{ r['writer_profile'] }}</td><td>{{ r['reporter_profile'] }}</td><td>{{ r['reason'] }}</td>
-      <td>{% if r['content'] %}<form method="post" action="{{ url_for('delete_comment', comment_id=r['comment_id']) }}"><button class="btn danger" type="submit">댓글 삭제</button></form>{% endif %}</td>
-    </tr>
-  {% else %}<tr><td colspan="7">신고된 댓글이 없습니다.</td></tr>{% endfor %}
+  <h3>게시글 삭제</h3>
+  <table>
+    <tr><th>ID</th><th>제목</th><th>작성자</th><th>삭제</th></tr>
+    {% for post in posts %}
+      <tr>
+        <td>{{ post.id }}</td>
+        <td>{{ post.title }}</td>
+        <td>{{ post.profile }}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin.delete_post', post_id=post.id) }}">
+            <button class="btn danger">삭제</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
   </table>
 </div>
+
 <div class="card">
-  <h3>전체 게시글 관리</h3>
-  <table><tr><th>ID</th><th>태그</th><th>제목</th><th>작성자</th><th>반응</th><th>관리</th></tr>
-  {% for p in posts %}
-    <tr><td>{{ p['id'] }}</td><td>{{ p['category'] }}</td><td>{{ p['title'] }}</td><td>{{ p['sns_profile'] }}</td><td>좋아요 {{ p['likes'] }} / 댓글 {{ p['comments'] }} / 조회 {{ p['view_count'] }}</td><td><form method="post" action="{{ url_for('delete_post', post_id=p['id']) }}"><button class="btn danger" type="submit">삭제</button></form></td></tr>
-  {% else %}<tr><td colspan="6">게시글이 없습니다.</td></tr>{% endfor %}
-  </table>
-</div>
-<div class="card">
-  <h3>전체 댓글 관리</h3>
-  <table><tr><th>ID</th><th>게시글</th><th>댓글</th><th>작성자</th><th>관리</th></tr>
-  {% for c in comments %}
-    <tr><td>{{ c['id'] }}</td><td>{{ c['post_title'] }}</td><td>{{ c['content'] }}</td><td>{{ c['sns_profile'] }}</td><td><form method="post" action="{{ url_for('delete_comment', comment_id=c['id']) }}"><button class="btn danger" type="submit">삭제</button></form></td></tr>
-  {% else %}<tr><td colspan="5">댓글이 없습니다.</td></tr>{% endfor %}
-  </table>
-</div>
-<div class="card">
-  <h3>카테고리별 게시글 수</h3>
-  <table><tr><th>카테고리</th><th>게시글 수</th></tr>
-  {% for r in category_stats %}<tr><td>{{ r['category'] }}</td><td>{{ r['cnt'] }}</td></tr>{% endfor %}
-  </table>
-</div>
-<div class="card">
-  <h3>사용자 활동 수준 및 자동 등급</h3>
-  <table><tr><th>사용자</th><th>자동 등급</th><th>게시글</th><th>댓글</th><th>받은 좋아요</th><th>활동점수</th></tr>
-  {% for u in users %}
-    <tr><td>{{ u['sns_profile'] }}</td><td>{{ u['grade'] }}</td><td>{{ u['post_count'] }}</td><td>{{ u['comment_count'] }}</td><td>{{ u['received_likes'] }}</td><td>{{ u['activity_score'] }}</td></tr>
-  {% endfor %}
+  <h3>댓글 삭제</h3>
+  <table>
+    <tr><th>ID</th><th>게시글</th><th>내용</th><th>작성자</th><th>삭제</th></tr>
+    {% for comment in comments %}
+      <tr>
+        <td>{{ comment.id }}</td>
+        <td>{{ comment.title }}</td>
+        <td>{{ comment.content }}</td>
+        <td>{{ comment.profile }}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin.delete_comment', comment_id=comment.id) }}">
+            <button class="btn danger">삭제</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
   </table>
 </div>
 {% endblock %}
