@@ -10,25 +10,28 @@ def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def get_activity(profile):
+def get_activity(user_id):
     conn = get_db()
-    post_count = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM posts WHERE profile=? AND archived=0",
-        (profile,),
-    ).fetchone()["cnt"]
-    comment_count = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM comments WHERE profile=?",
-        (profile,),
-    ).fetchone()["cnt"]
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM posts WHERE user_id=%s AND archived=FALSE",
+            (user_id,),
+        )
+        post_count = cur.fetchone()["cnt"]
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM comments WHERE user_id=%s AND archived=FALSE",
+            (user_id,),
+        )
+        comment_count = cur.fetchone()["cnt"]
     conn.close()
     return post_count, comment_count
 
 
-def calc_grade(username, profile):
-    if username == ADMIN_ID or profile == "관리자":
+def calc_grade(user_id, username=None, role=None):
+    if role == "admin" or username == ADMIN_ID:
         return "관리자"
 
-    post_count, comment_count = get_activity(profile)
+    post_count, comment_count = get_activity(user_id)
     if post_count >= 10 and comment_count >= 10:
         return "최우수"
     if post_count >= 5 and comment_count >= 5:
@@ -38,22 +41,39 @@ def calc_grade(username, profile):
     return "신입"
 
 
+def refresh_user_grade(user):
+    grade = calc_grade(user["user_id"], user.get("username"), user.get("role"))
+    if user.get("grade_name") != grade:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET grade_name=%s WHERE user_id=%s",
+                (grade, user["user_id"]),
+            )
+        conn.commit()
+        conn.close()
+    return grade
+
+
 def current_user():
-    if "username" not in session:
+    if "user_id" not in session:
         return None
 
     conn = get_db()
-    user = conn.execute(
-        "SELECT * FROM users WHERE username=?",
-        (session["username"],),
-    ).fetchone()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM users WHERE user_id=%s",
+            (session["user_id"],),
+        )
+        user = cur.fetchone()
     conn.close()
 
     if not user:
         return None
 
     data = dict(user)
-    data["grade"] = calc_grade(data["username"], data["profile"])
+    data["profile"] = data["profile_id"]
+    data["grade"] = refresh_user_grade(data)
     data["weight"] = GRADE_WEIGHT[data["grade"]]
     data["can_interact"] = data["grade"] != "신입"
     return data
@@ -82,21 +102,25 @@ def admin_required(view_func):
 
 def calc_trust_score(post):
     conn = get_db()
-    writer = conn.execute(
-        "SELECT username, profile FROM users WHERE profile=?",
-        (post["profile"],),
-    ).fetchone()
-    like_count = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM likes WHERE post_id=?",
-        (post["id"],),
-    ).fetchone()["cnt"]
-    comment_count = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM comments WHERE post_id=?",
-        (post["id"],),
-    ).fetchone()["cnt"]
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT username, role, grade_name FROM users WHERE user_id=%s",
+            (post["user_id"],),
+        )
+        writer = cur.fetchone()
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM likes WHERE post_id=%s",
+            (post["id"],),
+        )
+        like_count = cur.fetchone()["cnt"]
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM comments WHERE post_id=%s AND archived=FALSE",
+            (post["id"],),
+        )
+        comment_count = cur.fetchone()["cnt"]
     conn.close()
 
-    grade = calc_grade(writer["username"], writer["profile"]) if writer else "신입"
+    grade = calc_grade(post["user_id"], writer["username"], writer["role"]) if writer else "신입"
     score = (
         GRADE_WEIGHT[grade] * 10
         + like_count * 2
@@ -104,7 +128,9 @@ def calc_trust_score(post):
         + post["view_count"] * 0.1
     )
 
-    if score >= 40:
+    if post.get("archived"):
+        exposure = "조회 제외"
+    elif score >= 40:
         exposure = "최상단 노출"
     elif score >= 30:
         exposure = "상단 노출"

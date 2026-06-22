@@ -26,10 +26,14 @@ def report(target_type, target_id):
         return redirect(url_for("posts.index"))
 
     conn = get_db()
-    conn.execute(
-        "INSERT INTO reports(target_type, target_id, reporter_profile, reason, created_at) VALUES(?,?,?,?,?)",
-        (target_type, target_id, user["profile"], reason, now()),
-    )
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO reports(target_type, target_id, reporter_id, reason, created_at)
+            VALUES(%s, %s, %s, %s, %s)
+            """,
+            (target_type, target_id, user["user_id"], reason, now()),
+        )
     conn.commit()
     conn.close()
 
@@ -41,21 +45,56 @@ def report(target_type, target_id):
 @admin_required
 def admin_home():
     conn = get_db()
-    posts = conn.execute(
-        "SELECT * FROM posts WHERE archived=0 ORDER BY created_at DESC"
-    ).fetchall()
-    comments = conn.execute(
-        """
-        SELECT c.*, p.title
-        FROM comments c
-        LEFT JOIN posts p ON c.post_id=p.id
-        WHERE c.archived=0
-        ORDER BY c.created_at DESC
-        """
-    ).fetchall()
-    reports = conn.execute(
-        "SELECT * FROM reports ORDER BY created_at DESC"
-    ).fetchall()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+              p.post_id AS id,
+              p.post_id,
+              p.title,
+              p.created_at,
+              u.profile_id AS profile
+            FROM posts p
+            JOIN users u ON p.user_id = u.user_id
+            WHERE p.archived=FALSE
+            ORDER BY p.created_at DESC
+            """
+        )
+        posts = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT
+              cm.comment_id AS id,
+              cm.comment_id,
+              cm.content,
+              cm.created_at,
+              p.title,
+              u.profile_id AS profile
+            FROM comments cm
+            LEFT JOIN posts p ON cm.post_id=p.post_id
+            JOIN users u ON cm.user_id=u.user_id
+            WHERE cm.archived=FALSE
+            ORDER BY cm.created_at DESC
+            """
+        )
+        comments = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT
+              r.report_id,
+              r.target_type,
+              r.target_id,
+              u.profile_id AS reporter_profile,
+              r.reason,
+              r.created_at
+            FROM reports r
+            JOIN users u ON r.reporter_id = u.user_id
+            ORDER BY r.created_at DESC
+            """
+        )
+        reports = cur.fetchall()
     conn.close()
 
     return render_template(
@@ -70,7 +109,8 @@ def admin_home():
 @admin_required
 def delete_post(post_id):
     conn = get_db()
-    conn.execute("UPDATE posts SET archived=1 WHERE id=?", (post_id,))
+    with conn.cursor() as cur:
+        cur.execute("UPDATE posts SET archived=TRUE WHERE post_id=%s", (post_id,))
     conn.commit()
     conn.close()
     flash("게시글을 삭제 처리했습니다.")
@@ -81,7 +121,8 @@ def delete_post(post_id):
 @admin_required
 def delete_comment(comment_id):
     conn = get_db()
-    conn.execute("UPDATE comments SET archived=1 WHERE id=?", (comment_id,))
+    with conn.cursor() as cur:
+        cur.execute("UPDATE comments SET archived=TRUE WHERE comment_id=%s", (comment_id,))
     conn.commit()
     conn.close()
     flash("댓글을 삭제 처리했습니다.")

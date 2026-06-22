@@ -1,113 +1,96 @@
 # 학과 정보공유 시스템
 
-태그 분류와 신뢰도 점수를 활용한 학과 정보공유 커뮤니티 시스템입니다.
+태그 분류와 신뢰도 점수를 활용한 학과 정보공유 커뮤니티 시스템입니다.  
+이 버전은 **Flask + MySQL** 기반으로 실행됩니다.
 
-## 실행 방법
+## 1. 주요 변경 사항
+
+기존 SQLite `community.db` 방식이 아니라 실제 MySQL DB를 사용합니다.
+
+| 구분 | 변경 전 | 변경 후 |
+|---|---|---|
+| DB | SQLite `community.db` | MySQL `department_community` |
+| 연결 라이브러리 | sqlite3 | PyMySQL |
+| 사용자 PK | id/profile | user_id/profile_id |
+| 게시글 FK | profile/category | user_id/category_id |
+| 카테고리 PK | category_name | category_id |
+| 신고자 FK | reporter_profile | reporter_id |
+
+## 2. 실행 전 준비
+
+MySQL Workbench에서 MySQL 서버가 실행 중이어야 합니다.
+
+`config.py`에서 본인 MySQL 접속 정보에 맞게 수정하세요.
+
+```python
+MYSQL_HOST = "127.0.0.1"
+MYSQL_PORT = 3306
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "본인 MySQL 비밀번호"
+MYSQL_DB = "department_community"
+```
+
+비밀번호가 없으면 빈 문자열 그대로 두면 됩니다.
+
+## 3. 패키지 설치
 
 ```powershell
 pip install -r requirements.txt
+```
+
+## 4. 실행
+
+```powershell
 python main.py
 ```
 
-실행 후 브라우저에서 접속합니다.
+실행 시 `database.py`가 MySQL에 접속해서 `department_community` DB와 기본 테이블을 준비합니다.
+
+브라우저 접속:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-## 관리자 계정
+## 5. 기본 계정
+
+| 구분 | 아이디 | 비밀번호 |
+|---|---|---|
+| 관리자 | qwer | 1234 |
+
+## 6. 샘플 데이터 넣기
+
+샘플 게시글, 댓글, 좋아요, 신고 데이터는 코드에 자동 삽입하지 않습니다.  
+필요할 때 MySQL Workbench에서 `mysql_sample_data.sql`을 직접 실행하세요.
+
+실행 순서:
+
+1. `mysql_schema.sql` 실행 또는 `python main.py` 실행
+2. `mysql_sample_data.sql` 실행
+3. `python main.py` 실행 후 웹에서 확인
+
+## 7. 제출용 SQL 파일
+
+| 파일 | 용도 |
+|---|---|
+| `mysql_schema.sql` | ERD, EER, Relation Schema와 일치하는 MySQL 테이블 생성 파일 |
+| `mysql_sample_data.sql` | 시연용 샘플 데이터 삽입 파일 |
+
+## 8. 주요 기능
+
+- 회원가입/로그인
+- 신입/일반/우수/최우수/관리자 등급 산정
+- 신입은 인사방만 작성 및 상세 조회 가능
+- 태그 필수 글쓰기
+- 카테고리별 조회
+- 좋아요/댓글
+- 신뢰도 점수 계산
+- 작성자 본인 수정
+- 일반 이상 신고 가능
+- 관리자 신고 목록 조회 및 삭제 처리
+
+## 9. 신뢰도 점수 공식
 
 ```text
-아이디: qwer
-비밀번호: 1234
+신뢰도 점수 = 등급가중치 × 10 + 좋아요 수 × 2 + 댓글 수 × 1 + 조회수 × 0.1
 ```
-
-## 데이터 저장 방식
-
-본 프로젝트는 SQLite DB 파일을 사용합니다.
-
-```text
-community.db
-```
-
-`database.py`는 `CREATE TABLE IF NOT EXISTS`와 `INSERT OR IGNORE`를 사용하므로 서버를 껐다 켜도 기존 회원, 게시글, 댓글, 좋아요, 신고 데이터가 유지됩니다.
-
-주의할 점:
-
-- `community.db` 파일을 직접 삭제하면 저장된 데이터가 사라집니다.
-- `database.py`에는 `DROP TABLE`이나 DB 파일 삭제 로직이 없습니다.
-- DB 경로는 프로젝트 폴더 기준으로 고정되어 있습니다.
-
-## 주요 기능
-
-- 회원가입 및 로그인
-- 관리자 고정 계정
-- 태그 필수 게시글 작성
-- 인사방, 수업, 과제, 팀플, 공지, 취업 카테고리
-- 신입, 일반, 우수, 최우수, 관리자 등급 산정
-- 신입은 인사방만 상세 조회 및 작성 가능
-- 일반 이상 댓글, 좋아요, 신고 가능
-- 작성자 본인 게시글/댓글 수정 가능
-- 관리자는 신고 목록 조회 및 게시글/댓글 삭제 가능
-- 신뢰도 점수 기반 게시글 정렬
-
-## 신뢰도 점수
-
-```text
-신뢰도 점수 = 등급가중치×10 + 좋아요×2 + 댓글×1 + 조회수×0.1
-```
-
-## 파일 구조
-
-```text
-project_final_persistent/
-├─ main.py
-├─ config.py
-├─ database.py
-├─ utils.py
-├─ pages/
-│  ├─ auth.py
-│  ├─ posts.py
-│  └─ admin.py
-├─ templates/
-├─ static/
-├─ requirements.txt
-├─ mysql_schema.sql
-└─ README.md
-```
-
-## 시연용 샘플 데이터
-
-이 버전은 첫 실행 시 `community.db`가 없으면 샘플 데이터를 자동으로 생성합니다.
-샘플 데이터는 `config.py`의 `ENABLE_SAMPLE_DATA = True` 설정으로 활성화되어 있습니다.
-
-### 샘플 로그인 계정
-
-| 등급 | 아이디 | 비밀번호 | 설명 |
-|---|---|---|---|
-| 관리자 | qwer | 1234 | 신고 목록 조회, 게시글/댓글 삭제 |
-| 신입 | newbie | 1234 | 인사방만 조회/작성 가능 |
-| 일반 | general | 1234 | 일반 게시글 조회, 댓글, 좋아요, 신고 가능 |
-| 우수 | mentor | 1234 | 게시글 5개+댓글 5개 이상, 신뢰도 가중치 상승 |
-| 최우수 | topmentor | 1234 | 게시글 10개+댓글 10개 이상, 신뢰도 가중치 추가 상승 |
-| 일반 | student1 | 1234 | 수업 질문 샘플 계정 |
-| 일반 | student2 | 1234 | 과제 질문 샘플 계정 |
-
-### 포함된 샘플 데이터
-
-- 사용자 7명
-- 게시글 18개
-- 댓글 20개
-- 좋아요 51개
-- 신고 2개
-- 카테고리 6개: 인사방, 수업, 과제, 팀플, 공지, 취업
-
-### 샘플 데이터 초기화 방법
-
-샘플 데이터를 다시 처음 상태로 만들고 싶으면 서버를 종료한 뒤 `community.db` 파일을 삭제하고 다시 실행하세요.
-
-```powershell
-python main.py
-```
-
-단, 실제 시연 중 작성한 데이터까지 모두 삭제되므로 주의하세요.

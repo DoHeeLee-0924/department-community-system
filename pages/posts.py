@@ -1,4 +1,4 @@
-import sqlite3
+import pymysql
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 
 from config import CATEGORIES
@@ -9,15 +9,46 @@ from utils import current_user, login_required, now, calc_trust_score
 posts_bp = Blueprint("posts", __name__)
 
 
+def _get_category_id(cur, category_name):
+    cur.execute("SELECT category_id FROM categories WHERE category_name=%s", (category_name,))
+    row = cur.fetchone()
+    return row["category_id"] if row else None
+
+
+def _select_posts_sql(where_clause="", order_clause="p.created_at DESC"):
+    return f"""
+        SELECT
+          p.post_id AS id,
+          p.post_id,
+          p.user_id,
+          p.category_id,
+          c.category_name AS category,
+          p.title,
+          p.content,
+          p.view_count,
+          p.archived,
+          p.created_at,
+          p.updated_at,
+          u.username,
+          u.profile_id AS profile,
+          u.grade_name
+        FROM posts p
+        JOIN users u ON p.user_id = u.user_id
+        JOIN categories c ON p.category_id = c.category_id
+        {where_clause}
+        ORDER BY {order_clause}
+    """
+
+
 @posts_bp.route("/")
 def index():
     selected_category = request.args.get("category")
     mode = request.args.get("mode", "trust")
 
     conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM posts WHERE archived=0 ORDER BY created_at DESC"
-    ).fetchall()
+    with conn.cursor() as cur:
+        cur.execute(_select_posts_sql("WHERE p.archived=FALSE"))
+        rows = cur.fetchall()
     conn.close()
 
     posts = []
@@ -58,10 +89,19 @@ def write():
             return redirect(url_for("posts.write"))
 
         conn = get_db()
-        conn.execute(
-            "INSERT INTO posts(profile, category, title, content, created_at) VALUES(?,?,?,?,?)",
-            (user["profile"], category, title, content, now()),
-        )
+        with conn.cursor() as cur:
+            category_id = _get_category_id(cur, category)
+            if not category_id:
+                conn.close()
+                flash("존재하지 않는 카테고리입니다.")
+                return redirect(url_for("posts.write"))
+            cur.execute(
+                """
+                INSERT INTO posts(user_id, category_id, title, content, created_at)
+                VALUES(%s, %s, %s, %s, %s)
+                """,
+                (user["user_id"], category_id, title, content, now()),
+            )
         conn.commit()
         conn.close()
 
@@ -76,28 +116,45 @@ def write():
 def post_detail(post_id):
     user = current_user()
     conn = get_db()
-    post = conn.execute(
-        "SELECT * FROM posts WHERE id=? AND archived=0",
-        (post_id,),
-    ).fetchone()
+    with conn.cursor() as cur:
+        cur.execute(_select_posts_sql("WHERE p.post_id=%s AND p.archived=FALSE"), (post_id,))
+        post = cur.fetchone()
 
-    if not post:
-        conn.close()
-        flash("게시글을 찾을 수 없습니다.")
-        return redirect(url_for("posts.index"))
+        if not post:
+            conn.close()
+            flash("게시글을 찾을 수 없습니다.")
+            return redirect(url_for("posts.index"))
 
-    if user["grade"] == "신입" and post["category"] != "인사방":
-        conn.close()
-        flash("신입은 인사방 게시글만 상세 조회할 수 있습니다.")
-        return redirect(url_for("posts.index"))
+        if user["grade"] == "신입" and post["category"] != "인사방":
+            conn.close()
+            flash("신입은 인사방 게시글만 상세 조회할 수 있습니다.")
+            return redirect(url_for("posts.index"))
 
-    conn.execute("UPDATE posts SET view_count=view_count+1 WHERE id=?", (post_id,))
-    conn.commit()
-    post = conn.execute("SELECT * FROM posts WHERE id=?", (post_id,)).fetchone()
-    comments = conn.execute(
-        "SELECT * FROM comments WHERE post_id=? AND archived=0 ORDER BY created_at",
-        (post_id,),
-    ).fetchall()
+        cur.execute("UPDATE posts SET view_count=view_count+1 WHERE post_id=%s", (post_id,))
+        conn.commit()
+        cur.execute(_select_posts_sql("WHERE p.post_id=%s"), (post_id,))
+        post = cur.fetchone()
+        cur.execute(
+            """
+            SELECT
+              cm.comment_id AS id,
+              cm.comment_id,
+              cm.post_id,
+              cm.user_id,
+              cm.content,
+              cm.created_at,
+              cm.updated_at,
+              cm.archived,
+              u.profile_id AS profile,
+              u.username
+            FROM comments cm
+            JOIN users u ON cm.user_id = u.user_id
+            WHERE cm.post_id=%s AND cm.archived=FALSE
+            ORDER BY cm.created_at
+            """,
+            (post_id,),
+        )
+        comments = cur.fetchall()
     conn.close()
 
     trust = calc_trust_score(post)
@@ -115,10 +172,14 @@ def add_comment(post_id):
     content = request.form["content"].strip()
     if content:
         conn = get_db()
-        conn.execute(
-            "INSERT INTO comments(post_id, profile, content, created_at) VALUES(?,?,?,?)",
-            (post_id, user["profile"], content, now()),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO comments(post_id, user_id, content, created_at)
+                VALUES(%s, %s, %s, %s)
+                """,
+                (post_id, user["user_id"], content, now()),
+            )
         conn.commit()
         conn.close()
 
@@ -135,15 +196,17 @@ def like_post(post_id):
 
     conn = get_db()
     try:
-        conn.execute(
-            "INSERT INTO likes(post_id, profile, created_at) VALUES(?,?,?)",
-            (post_id, user["profile"], now()),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO likes(post_id, user_id, created_at) VALUES(%s, %s, %s)",
+                (post_id, user["user_id"], now()),
+            )
         conn.commit()
         flash("좋아요를 눌렀습니다.")
-    except sqlite3.IntegrityError:
+    except pymysql.err.IntegrityError:
         flash("이미 좋아요를 눌렀습니다.")
-    conn.close()
+    finally:
+        conn.close()
 
     return redirect(url_for("posts.post_detail", post_id=post_id))
 
@@ -153,12 +216,11 @@ def like_post(post_id):
 def edit_post(post_id):
     user = current_user()
     conn = get_db()
-    post = conn.execute(
-        "SELECT * FROM posts WHERE id=? AND archived=0",
-        (post_id,),
-    ).fetchone()
+    with conn.cursor() as cur:
+        cur.execute(_select_posts_sql("WHERE p.post_id=%s AND p.archived=FALSE"), (post_id,))
+        post = cur.fetchone()
 
-    if not post or post["profile"] != user["profile"]:
+    if not post or post["user_id"] != user["user_id"]:
         conn.close()
         flash("작성자 본인만 게시글을 수정할 수 있습니다.")
         return redirect(url_for("posts.index"))
@@ -176,10 +238,16 @@ def edit_post(post_id):
             flash("신입은 인사방 글만 수정할 수 있습니다.")
             return redirect(url_for("posts.edit_post", post_id=post_id))
 
-        conn.execute(
-            "UPDATE posts SET title=?, content=?, category=?, updated_at=? WHERE id=?",
-            (title, content, category, now(), post_id),
-        )
+        with conn.cursor() as cur:
+            category_id = _get_category_id(cur, category)
+            cur.execute(
+                """
+                UPDATE posts
+                SET title=%s, content=%s, category_id=%s, updated_at=%s
+                WHERE post_id=%s AND user_id=%s
+                """,
+                (title, content, category_id, now(), post_id, user["user_id"]),
+            )
         conn.commit()
         conn.close()
         flash("게시글을 수정했습니다.")
@@ -194,19 +262,39 @@ def edit_post(post_id):
 def edit_comment(comment_id):
     user = current_user()
     conn = get_db()
-    comment = conn.execute(
-        "SELECT * FROM comments WHERE id=?",
-        (comment_id,),
-    ).fetchone()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+              cm.comment_id AS id,
+              cm.comment_id,
+              cm.post_id,
+              cm.user_id,
+              cm.content,
+              cm.created_at,
+              cm.updated_at,
+              cm.archived,
+              u.profile_id AS profile
+            FROM comments cm
+            JOIN users u ON cm.user_id = u.user_id
+            WHERE cm.comment_id=%s AND cm.archived=FALSE
+            """,
+            (comment_id,),
+        )
+        comment = cur.fetchone()
 
-    if not comment or comment["profile"] != user["profile"]:
+    if not comment or comment["user_id"] != user["user_id"]:
         conn.close()
         flash("작성자 본인만 댓글을 수정할 수 있습니다.")
         return redirect(url_for("posts.index"))
 
     if request.method == "POST":
         content = request.form["content"].strip()
-        conn.execute("UPDATE comments SET content=?, updated_at=? WHERE id=?", (content, now(), comment_id))
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE comments SET content=%s, updated_at=%s WHERE comment_id=%s AND user_id=%s",
+                (content, now(), comment_id, user["user_id"]),
+            )
         conn.commit()
         conn.close()
         flash("댓글을 수정했습니다.")

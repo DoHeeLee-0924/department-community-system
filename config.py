@@ -1,10 +1,17 @@
 import os
 
-# 프로젝트 폴더 기준으로 DB 경로를 고정한다.
-# 따라서 어느 위치에서 python main.py를 실행해도 같은 DB 파일을 사용한다.
+# Flask 설정
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "community.db")
 SECRET_KEY = "department-community-demo-key"
+
+# MySQL 연결 설정
+# 본인 MySQL Workbench 접속 정보에 맞게 MYSQL_USER / MYSQL_PASSWORD를 수정하면 된다.
+MYSQL_HOST = "127.0.0.1"
+MYSQL_PORT = 3306
+MYSQL_USER = "root"
+MYSQL_PASSWORD = ""  # MySQL root 비밀번호가 있으면 여기에 입력
+MYSQL_DB = "department_community"
+MYSQL_CHARSET = "utf8mb4"
 
 ADMIN_ID = "qwer"
 ADMIN_PW = "1234"
@@ -17,6 +24,3 @@ GRADE_WEIGHT = {
     "최우수": 3.0,
     "관리자": 3.0,
 }
-
-# 첫 실행 시 시연용 샘플 데이터를 자동 삽입한다.
-ENABLE_SAMPLE_DATA = True

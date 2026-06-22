@@ -1,3 +1,14 @@
+-- MySQL schema for Department Community System
+-- This schema is aligned with the ER-Diagram, EER-Diagram, Relation Schema,
+-- and Decision Table rules used in the project presentation.
+
+CREATE DATABASE IF NOT EXISTS department_community
+DEFAULT CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+USE department_community;
+
+SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS reports;
 DROP TABLE IF EXISTS likes;
 DROP TABLE IF EXISTS comments;
@@ -5,6 +16,7 @@ DROP TABLE IF EXISTS posts;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS grade_rules;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE grade_rules (
   grade_name VARCHAR(20) PRIMARY KEY,
@@ -13,23 +25,23 @@ CREATE TABLE grade_rules (
   weight DECIMAL(3,1) NOT NULL,
   can_view BOOLEAN NOT NULL,
   can_interact BOOLEAN NOT NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE users (
   user_id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(50) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
   profile_id VARCHAR(50) UNIQUE NOT NULL,
-  role ENUM('user', 'admin') DEFAULT 'user',
-  grade_name VARCHAR(20) DEFAULT '신입',
+  role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+  grade_name VARCHAR(20) NOT NULL DEFAULT '신입',
   FOREIGN KEY (grade_name) REFERENCES grade_rules(grade_name)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE categories (
   category_id INT AUTO_INCREMENT PRIMARY KEY,
   category_name VARCHAR(20) UNIQUE NOT NULL,
   description VARCHAR(255)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE posts (
   post_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -37,35 +49,38 @@ CREATE TABLE posts (
   category_id INT NOT NULL,
   title VARCHAR(200) NOT NULL,
   content TEXT NOT NULL,
-  view_count INT DEFAULT 0,
-  archived BOOLEAN DEFAULT FALSE,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME,
+  view_count INT NOT NULL DEFAULT 0,
+  archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(user_id),
-  FOREIGN KEY (category_id) REFERENCES categories(category_id)
-);
+  FOREIGN KEY (category_id) REFERENCES categories(category_id),
+  CHECK (CHAR_LENGTH(TRIM(title)) > 0),
+  CHECK (CHAR_LENGTH(TRIM(content)) > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE comments (
   comment_id INT AUTO_INCREMENT PRIMARY KEY,
   post_id INT NOT NULL,
   user_id INT NOT NULL,
   content TEXT NOT NULL,
-  archived BOOLEAN DEFAULT FALSE,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME,
+  archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (post_id) REFERENCES posts(post_id),
-  FOREIGN KEY (user_id) REFERENCES users(user_id)
-);
+  FOREIGN KEY (user_id) REFERENCES users(user_id),
+  CHECK (CHAR_LENGTH(TRIM(content)) > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE likes (
   like_id INT AUTO_INCREMENT PRIMARY KEY,
   post_id INT NOT NULL,
   user_id INT NOT NULL,
-  created_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(post_id, user_id),
   FOREIGN KEY (post_id) REFERENCES posts(post_id),
   FOREIGN KEY (user_id) REFERENCES users(user_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE reports (
   report_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -73,11 +88,12 @@ CREATE TABLE reports (
   target_type ENUM('post', 'comment') NOT NULL,
   target_id INT NOT NULL,
   reason TEXT NOT NULL,
-  created_at DATETIME NOT NULL,
-  FOREIGN KEY (reporter_id) REFERENCES users(user_id)
-);
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reporter_id) REFERENCES users(user_id),
+  CHECK (CHAR_LENGTH(TRIM(reason)) > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
+-- Default grade rules
 INSERT INTO grade_rules
 (grade_name, min_post_count, min_comment_count, weight, can_view, can_interact)
 VALUES
@@ -87,7 +103,7 @@ VALUES
 ('최우수', 10, 10, 3.0, TRUE, TRUE),
 ('관리자', 0, 0, 3.0, TRUE, TRUE);
 
-
+-- Default categories
 INSERT INTO categories (category_name, description)
 VALUES
 ('인사방', '신입 사용자가 인사글을 작성하고 확인하는 공간'),
@@ -97,11 +113,12 @@ VALUES
 ('공지', '공지 관련 정보'),
 ('취업', '취업 관련 정보');
 
-
+-- Default administrator account
 INSERT INTO users (username, password, profile_id, role, grade_name)
 VALUES ('qwer', '1234', 'admin', 'admin', '관리자');
 
-
+-- Example reliability score query
+-- Formula: grade weight * 10 + like count * 2 + comment count * 1 + view count * 0.1
 SELECT
   p.post_id,
   p.title,
