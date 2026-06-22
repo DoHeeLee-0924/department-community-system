@@ -1,7 +1,3 @@
--- MySQL schema for Department Community System
--- This schema is aligned with the ER-Diagram, EER-Diagram, Relation Schema,
--- and Decision Table rules used in the project presentation.
-
 DROP TABLE IF EXISTS reports;
 DROP TABLE IF EXISTS likes;
 DROP TABLE IF EXISTS comments;
@@ -81,7 +77,7 @@ CREATE TABLE reports (
   FOREIGN KEY (reporter_id) REFERENCES users(user_id)
 );
 
--- Default grade rules
+
 INSERT INTO grade_rules
 (grade_name, min_post_count, min_comment_count, weight, can_view, can_interact)
 VALUES
@@ -91,7 +87,7 @@ VALUES
 ('최우수', 10, 10, 3.0, TRUE, TRUE),
 ('관리자', 0, 0, 3.0, TRUE, TRUE);
 
--- Default categories
+
 INSERT INTO categories (category_name, description)
 VALUES
 ('인사방', '신입 사용자가 인사글을 작성하고 확인하는 공간'),
@@ -101,12 +97,11 @@ VALUES
 ('공지', '공지 관련 정보'),
 ('취업', '취업 관련 정보');
 
--- Default administrator account
+
 INSERT INTO users (username, password, profile_id, role, grade_name)
 VALUES ('qwer', '1234', 'admin', 'admin', '관리자');
 
--- Example reliability score query
--- Formula: grade weight * 10 + like count * 2 + comment count * 1 + view count * 0.1
+
 SELECT
   p.post_id,
   p.title,
