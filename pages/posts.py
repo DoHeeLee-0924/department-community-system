@@ -95,7 +95,7 @@ def post_detail(post_id):
     conn.commit()
     post = conn.execute("SELECT * FROM posts WHERE id=?", (post_id,)).fetchone()
     comments = conn.execute(
-        "SELECT * FROM comments WHERE post_id=? ORDER BY created_at",
+        "SELECT * FROM comments WHERE post_id=? AND archived=0 ORDER BY created_at",
         (post_id,),
     ).fetchall()
     conn.close()
@@ -136,8 +136,8 @@ def like_post(post_id):
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO likes(post_id, profile) VALUES(?,?)",
-            (post_id, user["profile"]),
+            "INSERT INTO likes(post_id, profile, created_at) VALUES(?,?,?)",
+            (post_id, user["profile"], now()),
         )
         conn.commit()
         flash("좋아요를 눌렀습니다.")
@@ -177,8 +177,8 @@ def edit_post(post_id):
             return redirect(url_for("posts.edit_post", post_id=post_id))
 
         conn.execute(
-            "UPDATE posts SET title=?, content=?, category=? WHERE id=?",
-            (title, content, category, post_id),
+            "UPDATE posts SET title=?, content=?, category=?, updated_at=? WHERE id=?",
+            (title, content, category, now(), post_id),
         )
         conn.commit()
         conn.close()
@@ -206,7 +206,7 @@ def edit_comment(comment_id):
 
     if request.method == "POST":
         content = request.form["content"].strip()
-        conn.execute("UPDATE comments SET content=? WHERE id=?", (content, comment_id))
+        conn.execute("UPDATE comments SET content=?, updated_at=? WHERE id=?", (content, now(), comment_id))
         conn.commit()
         conn.close()
         flash("댓글을 수정했습니다.")

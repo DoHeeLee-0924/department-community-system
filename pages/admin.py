@@ -49,6 +49,7 @@ def admin_home():
         SELECT c.*, p.title
         FROM comments c
         LEFT JOIN posts p ON c.post_id=p.id
+        WHERE c.archived=0
         ORDER BY c.created_at DESC
         """
     ).fetchall()
@@ -80,8 +81,8 @@ def delete_post(post_id):
 @admin_required
 def delete_comment(comment_id):
     conn = get_db()
-    conn.execute("DELETE FROM comments WHERE id=?", (comment_id,))
+    conn.execute("UPDATE comments SET archived=1 WHERE id=?", (comment_id,))
     conn.commit()
     conn.close()
-    flash("댓글을 삭제했습니다.")
+    flash("댓글을 삭제 처리했습니다.")
     return redirect(url_for("admin.admin_home"))
