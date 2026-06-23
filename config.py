@@ -9,7 +9,7 @@ SECRET_KEY = "department-community-demo-key"
 MYSQL_HOST = "127.0.0.1"
 MYSQL_PORT = 3306
 MYSQL_USER = "root"
-MYSQL_PASSWORD = ""  # MySQL root 비밀번호가 있으면 여기에 입력
+MYSQL_PASSWORD = "3122"
 MYSQL_DB = "department_community"
 MYSQL_CHARSET = "utf8mb4"
 

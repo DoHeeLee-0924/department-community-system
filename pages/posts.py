@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 
 from config import CATEGORIES
 from database import get_db
-from utils import current_user, login_required, now, calc_trust_score
+from utils import current_user, login_required, now, calc_trust_score, trust_from_counts
 
 
 posts_bp = Blueprint("posts", __name__)
@@ -45,18 +45,76 @@ def index():
     selected_category = request.args.get("category")
     mode = request.args.get("mode", "trust")
 
+    where = "WHERE p.archived=FALSE"
+    params = []
+    if selected_category:
+        where += " AND c.category_name=%s"
+        params.append(selected_category)
+
+    # 메인 페이지 속도 개선:
+    # 기존 방식은 게시글마다 좋아요 수, 댓글 수, 작성자 등급을 따로 조회했다.
+    # 아래 방식은 필요한 값을 한 번의 SQL로 모아서 N+1 쿼리를 제거한다.
+    sql = f"""
+        SELECT
+          p.post_id AS id,
+          p.post_id,
+          p.user_id,
+          p.category_id,
+          c.category_name AS category,
+          p.title,
+          p.content,
+          p.view_count,
+          p.archived,
+          p.created_at,
+          p.updated_at,
+          u.username,
+          u.role,
+          u.profile_id AS profile,
+          u.grade_name,
+          COALESCE(wp.post_count, 0) AS writer_post_count,
+          COALESCE(wc.comment_count, 0) AS writer_comment_count,
+          COALESCE(lc.like_count, 0) AS like_count,
+          COALESCE(cc.comment_count, 0) AS comment_count
+        FROM posts p
+        JOIN users u ON p.user_id = u.user_id
+        JOIN categories c ON p.category_id = c.category_id
+        LEFT JOIN (
+          SELECT user_id, COUNT(*) AS post_count
+          FROM posts
+          WHERE archived=FALSE
+          GROUP BY user_id
+        ) wp ON p.user_id = wp.user_id
+        LEFT JOIN (
+          SELECT user_id, COUNT(*) AS comment_count
+          FROM comments
+          WHERE archived=FALSE
+          GROUP BY user_id
+        ) wc ON p.user_id = wc.user_id
+        LEFT JOIN (
+          SELECT post_id, COUNT(*) AS like_count
+          FROM likes
+          GROUP BY post_id
+        ) lc ON p.post_id = lc.post_id
+        LEFT JOIN (
+          SELECT post_id, COUNT(*) AS comment_count
+          FROM comments
+          WHERE archived=FALSE
+          GROUP BY post_id
+        ) cc ON p.post_id = cc.post_id
+        {where}
+        ORDER BY p.created_at DESC
+    """
+
     conn = get_db()
     with conn.cursor() as cur:
-        cur.execute(_select_posts_sql("WHERE p.archived=FALSE"))
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
     conn.close()
 
     posts = []
     for row in rows:
-        if selected_category and row["category"] != selected_category:
-            continue
         post = dict(row)
-        post.update(calc_trust_score(row))
+        post.update(trust_from_counts(post))
         posts.append(post)
 
     if mode == "trust":
@@ -68,7 +126,6 @@ def index():
         selected_category=selected_category,
         mode=mode,
     )
-
 
 @posts_bp.route("/write", methods=["GET", "POST"])
 @login_required

@@ -64,6 +64,7 @@ def init_db():
     with conn.cursor() as cur:
         cur.execute("SET FOREIGN_KEY_CHECKS = 1")
         _create_tables(cur)
+        _create_indexes(cur)
         insert_default_data(cur)
     conn.commit()
     conn.close()
@@ -172,6 +173,35 @@ def _create_tables(cur):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         """
     )
+
+
+def _create_index_if_missing(cur, table_name, index_name, column_sql):
+    cur.execute(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = %s
+          AND INDEX_NAME = %s
+        """,
+        (table_name, index_name),
+    )
+    exists = cur.fetchone()["cnt"]
+    if not exists:
+        cur.execute(f"CREATE INDEX {index_name} ON {table_name}({column_sql})")
+
+
+def _create_indexes(cur):
+    # 메인 페이지의 JOIN/GROUP BY 속도 개선용 인덱스
+    _create_index_if_missing(cur, "posts", "idx_posts_user_id", "user_id")
+    _create_index_if_missing(cur, "posts", "idx_posts_category_id", "category_id")
+    _create_index_if_missing(cur, "posts", "idx_posts_archived", "archived")
+    _create_index_if_missing(cur, "comments", "idx_comments_post_id", "post_id")
+    _create_index_if_missing(cur, "comments", "idx_comments_user_id", "user_id")
+    _create_index_if_missing(cur, "comments", "idx_comments_archived", "archived")
+    _create_index_if_missing(cur, "likes", "idx_likes_post_id", "post_id")
+    _create_index_if_missing(cur, "likes", "idx_likes_user_id", "user_id")
+    _create_index_if_missing(cur, "users", "idx_users_grade_name", "grade_name")
 
 
 def insert_default_data(cur):
